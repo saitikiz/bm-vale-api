@@ -113,6 +113,12 @@ class BonusController
             'site_id' => null,
         ]);
 
+        ProcessBonusRequest::dispatch($bonusRequest->uuid)->onQueue('bonusRequest');
+        return response()->json([
+            'success' => true,
+            'message' => 'Bonus eklemede',
+            'bonusRequest' => $bonusRequest,
+        ]);
         $function_name = $bonus->function_name ?? 'default';
         $reuslt = $this->{$function_name}($bonusRequest, $bonus);
         return $reuslt;
@@ -346,76 +352,8 @@ class BonusController
         if (!$summary['success']) {
             // bonus yoksa erken çıkış, log vb.
         }
-
-
-
-        return "";
-        dd($siteSummary,$transactionsList);
+        dd($summary,$memberSummary);
         return $memberSummary;
-        $result = $this->pronet->transactionsList($data);
-        Log::info($result);
-        $result2 = $this->pronet->claimedbonusesList($data);
-        Log::info($result2);
-        $result3 = $this->pronet->memberBalance($data);
-        Log::info($result3);
-
-        $result4 = $this->pronet->memberSummary($data);
-        return $result4['response'];
-        $result4 = json_encode($result4,true);
-        Log::info($result3);
-        return $result4;
-        dd($result,$result2,$result3,$result4);
-
-        return ;
-
-        //todo return düzelt
-        if (!($result['ok'] ?? false)) {
-            // Eğer status döndüyse ona göre, dönmediyse 500
-            $code = $result['status'] ?? 500;
-            return response()->json($result, $code);
-        }
-
-        //HESAPLAMA
-        $txs = Arr::get($result, 'response.body', []);
-        if (!is_array($txs)) $txs = [];
-
-        // sadece status=C olanlar
-        $completed = array_values(array_filter($txs, fn($t) => ($t['status'] ?? null) === 'C'));
-
-        $depositTotal = 0.0;
-        $withdrawTotal = 0.0;
-
-        foreach ($completed as $t) {
-            $amount = (float) ($t['amount'] ?? 0);
-
-            if (($t['masterCode'] ?? null) === 'D') {
-                $depositTotal += $amount;
-            } elseif (($t['masterCode'] ?? null) === 'W') {
-                $withdrawTotal += $amount;
-            }
-        }
-
-        $net = $depositTotal - $withdrawTotal;
-
-        $summary = [
-            'deposit_total' => $depositTotal,
-            'withdraw_total' => $withdrawTotal,
-            'net' => $net,
-            'count_completed' => count($completed),
-        ];
-        Log::info('summary', $summary);
-        if ($net>0){
-            if ($net>=5 && $net<1000) {
-                $bonus_amount = $net*0.2;
-            }else if ($net>=1000 && $net<20000) {
-                $bonus_amount = $net*0.25;
-            }else if ($net>=20000) {
-                $bonus_amount = $net*0.3;
-            }
-            return ['ok' => true, 'reason' => $bonus_amount.' TL Kayıp bonusunuz eklendi'];
-        }else{
-            return ['ok' => false, 'reason' => 'Son 24 saat içerisinde kayıp bulunmadı.'];
-        }
     }
 
     public function ping()
