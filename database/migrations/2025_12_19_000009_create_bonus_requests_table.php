@@ -24,7 +24,10 @@ class CreateBonusRequestsTable extends Migration
             $table->longText('last_error')->nullable();
             $table->longText('site_summary')->nullable();
             $table->longText('bonus_history')->nullable();
+            $table->longText('bonus_summary')->nullable();
             $table->longText('reason')->nullable();
+            $table->string('callback_url')->nullable();
+            $table->string('callback_secret')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
