@@ -25,13 +25,33 @@ class BonusRequestProcessor
         $function_name = $bonus->function_name ?? 'default';
 
         if (!method_exists($this, $function_name)) {
-            Log::warning("BonusRequestProcessor: unknown function [{$function_name}]", ['uuid' => $req->uuid]);
-            return ['ok' => false, 'reason' => "Unknown bonus function: {$function_name}"];
+            $reason = "Tanımsız bonus fonksiyonu: {$function_name}";
+            Log::warning("BonusRequestProcessor: {$reason}", ['uuid' => $req->uuid]);
+            return ['ok' => false, 'reason' => $reason];
         }
 
         Log::info("BonusRequestProcessor: dispatching [{$function_name}]", ['uuid' => $req->uuid]);
 
         return $this->{$function_name}($req, $bonus);
+    }
+
+    // -------------------------------------------------------------------------
+    // Yardımcı
+    // -------------------------------------------------------------------------
+
+    private function apiError(BonusRequest $req, string $reason, array $apiResponse): array
+    {
+        $detail = [
+            'status' => $apiResponse['status'] ?? null,
+            'body'   => $apiResponse['response']['body'] ?? $apiResponse['response'] ?? null,
+        ];
+
+        Log::error("BonusRequestProcessor: {$reason}", [
+            'uuid'   => $req->uuid,
+            'detail' => $detail,
+        ]);
+
+        return ['ok' => false, 'reason' => $reason, 'detail' => $detail];
     }
 
     // -------------------------------------------------------------------------
@@ -59,7 +79,7 @@ class BonusRequestProcessor
         $memberSummary = $this->pronet->memberSummary($queryData);
 
         if (!($memberSummary['ok'] ?? false)) {
-            return ['ok' => false, 'reason' => 'memberSummary API hatası', 'detail' => $memberSummary];
+            return $this->apiError($req, 'memberSummary API hatası', $memberSummary);
         }
 
         $siteSummary['financialInfo']       = $memberSummary['response']['body']['financialInfo'];
@@ -69,7 +89,7 @@ class BonusRequestProcessor
         $transactionsList = $this->pronet->transactionsList($queryData);
 
         if (!($transactionsList['ok'] ?? false)) {
-            return ['ok' => false, 'reason' => 'transactionsList API hatası', 'detail' => $transactionsList];
+            return $this->apiError($req, 'transactionsList API hatası', $transactionsList);
         }
 
         $siteSummary['transactionsList'] = $transactionsList['response']['body'];
@@ -79,7 +99,7 @@ class BonusRequestProcessor
         $bonusHistoryResponse = $this->pronet->getBonusHistoryByName($req->customer_username);
 
         if (!($bonusHistoryResponse['ok'] ?? false)) {
-            return ['ok' => false, 'reason' => 'getBonusHistoryByName API hatası', 'detail' => $bonusHistoryResponse];
+            return $this->apiError($req, 'getBonusHistoryByName API hatası', $bonusHistoryResponse);
         }
 
         $bonusHistory = $bonusHistoryResponse['response'];
