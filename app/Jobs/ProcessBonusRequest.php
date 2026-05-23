@@ -41,13 +41,19 @@ class ProcessBonusRequest implements ShouldQueue
 
             if ($result['ok']) {
                 $req->update([
-                    'status' => 'approved_assigned',
+                    'status'        => 'approved_assigned',
                     'status_reason' => $result['reason'] ?? null,
                 ]);
             } else {
+                $lastError = $result['reason'] ?? 'Rejected';
+                if (!empty($result['detail'])) {
+                    $lastError .= ' | ' . (is_string($result['detail']) ? $result['detail'] : json_encode($result['detail']));
+                }
+
                 $req->update([
-                    'status' => 'rejected',
+                    'status'        => 'rejected',
                     'status_reason' => $result['reason'] ?? 'Rejected',
+                    'last_error'    => $lastError,
                 ]);
             }
         } catch (\Throwable $e) {
