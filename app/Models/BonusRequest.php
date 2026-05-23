@@ -53,6 +53,7 @@ class BonusRequest extends Model
         'last_error',
         'site_summary',
         'bonus_history',
+        'bonus_summary',
         'reason',
         'site_id',
         'bonus_id',

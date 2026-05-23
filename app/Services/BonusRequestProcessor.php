@@ -114,6 +114,8 @@ class BonusRequestProcessor
             return ['ok' => false, 'reason' => $summary['message'] ?? 'Net durum hesaplanamadı'];
         }
 
+        $req->update(['bonus_summary' => json_encode($summary)]);
+
         // TODO: $summary verisine göre bonus assign et
         Log::info('f3336 summary', $summary);
 
