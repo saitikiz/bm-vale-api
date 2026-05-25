@@ -60,9 +60,11 @@ class ProcessBonusRequest implements ShouldQueue
             $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
-                'status' => 'rejected',
+                'status'     => 'rejected',
                 'last_error' => $e->getMessage(),
             ]);
+
+            $this->sendCallback($req->fresh());
 
             throw $e; // tries/backoff çalışsın istiyorsan bunu bırak
         }
