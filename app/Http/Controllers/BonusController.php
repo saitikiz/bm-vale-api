@@ -90,7 +90,7 @@ class BonusController
         $bonusRequest = BonusRequest::create([
             'uuid'              => Str::uuid(),
             'worker_id'         => null,
-            'customerid'        => $data['user_id'],
+            'customerid'        => $data['user_id'] ?? null,
             'customer_username' => $data['username'],
             'bonus_id'          => $bonus->id,
             'source'            => 'other',
