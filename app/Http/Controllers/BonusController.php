@@ -52,6 +52,8 @@ class BonusController
                 'max:50',
                 'regex:/^[a-zA-Z0-9._-]+$/'
             ],
+            'callback_url'    => ['nullable', 'url', 'max:500'],
+            'callback_secret' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($validator->fails()) {
@@ -96,10 +98,12 @@ class BonusController
             'status'            => 'new',
             'status_reason'     => null,
             'note'              => null,
-            'locked_at'         => null,
-            'retry_count'       => 0,
-            'last_error'        => null,
-            'site_id'           => null,
+            'locked_at'       => null,
+            'retry_count'     => 0,
+            'last_error'      => null,
+            'site_id'         => null,
+            'callback_url'    => $data['callback_url'] ?? null,
+            'callback_secret' => $data['callback_secret'] ?? null,
         ]);
 
         ProcessBonusRequest::dispatch($bonusRequest->uuid)->onQueue('bonusRequest');

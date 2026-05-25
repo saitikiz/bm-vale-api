@@ -55,6 +55,8 @@ class BonusRequest extends Model
         'bonus_history',
         'bonus_summary',
         'reason',
+        'callback_url',
+        'callback_secret',
         'site_id',
         'bonus_id',
         'created_at',

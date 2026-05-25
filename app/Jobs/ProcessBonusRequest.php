@@ -56,6 +56,8 @@ class ProcessBonusRequest implements ShouldQueue
                     'last_error'    => $lastError,
                 ]);
             }
+
+            $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
                 'status' => 'rejected',
@@ -66,6 +68,32 @@ class ProcessBonusRequest implements ShouldQueue
         }
 
 
+    }
+
+    private function sendCallback(BonusRequest $req): void
+    {
+        if (empty($req->callback_url)) {
+            return;
+        }
+
+        $payload = json_encode([
+            'uuid'            => $req->uuid,
+            'status'          => $req->status,
+            'status_reason'   => $req->status_reason,
+            'bonus_summary'   => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
+            'callback_secret' => $req->callback_secret,
+        ]);
+
+        $ch = curl_init($req->callback_url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
     }
 
     public function failed(\Throwable $e): void
