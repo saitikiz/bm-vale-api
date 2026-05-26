@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ProcessBonusRequest;
 use App\Models\Bonus;
 use App\Models\BonusRequest;
+use App\Models\BonusStatusMessage;
 use App\Services\ClientMessageService;
 use App\Services\PronetClient;
 use Illuminate\Http\Request;
@@ -75,7 +76,7 @@ class BonusController
         if (!$bonus) {
             return response()->json([
                 'success' => false,
-                'message' => $this->messages->resolve('bonus_not_found'),
+                'message' => $this->messages->resolveById(BonusStatusMessage::BONUS_NOT_FOUND),
             ], 404);
         }
 
@@ -96,7 +97,7 @@ class BonusController
         if ($recentRequest) {
             return response()->json([
                 'success' => false,
-                'message' => $this->messages->resolve('duplicate_request'),
+                'message' => $this->messages->resolveById(BonusStatusMessage::DUPLICATE),
             ], 429);
         }
 
@@ -110,7 +111,6 @@ class BonusController
             'ip'                => $request->ip(),
             'status'            => 'new',
             'status_reason'     => null,
-            'client_message'    => null,
             'note'              => null,
             'locked_at'         => null,
             'retry_count'       => 0,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ClientMessageService;
 use App\Traits\Auditable;
 use Carbon\Carbon;
 use DateTimeInterface;
@@ -47,7 +48,8 @@ class BonusRequest extends Model
         'ip',
         'status',
         'status_reason',
-        'client_message',
+        'message_id',
+        'message_vars',
         'note',
         'locked_at',
         'retry_count',
@@ -68,6 +70,17 @@ class BonusRequest extends Model
     protected function serializeDate(DateTimeInterface $date)
     {
         return $date->format('Y-m-d H:i:s');
+    }
+
+    public function getClientMessageAttribute(): ?string
+    {
+        if (!$this->message_id) {
+            return null;
+        }
+
+        $vars = $this->message_vars ? json_decode($this->message_vars, true) : [];
+
+        return app(ClientMessageService::class)->resolveById((int) $this->message_id, $vars ?? []);
     }
 
     public function worker()

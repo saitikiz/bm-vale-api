@@ -3,8 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\BonusRequest;
+use App\Models\BonusStatusMessage;
 use App\Services\BonusRequestProcessor;
-use App\Services\ClientMessageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -25,7 +25,7 @@ class ProcessBonusRequest implements ShouldQueue
         $this->bonusRequestUuid = $bonusRequestUuid;
     }
 
-    public function handle(BonusRequestProcessor $processor, ClientMessageService $messages): void
+    public function handle(BonusRequestProcessor $processor): void
     {
         $req = BonusRequest::where('uuid', $this->bonusRequestUuid)->first();
 
@@ -41,30 +41,29 @@ class ProcessBonusRequest implements ShouldQueue
             $result = $processor->process($req);
 
             if ($result->ok) {
-                $amount         = $result->data['bonus_amount'] ?? null;
-                $messageKey     = $amount ? 'approved_amount' : 'approved';
-                $clientMessage  = $messages->resolve($messageKey, $amount ? ['amount' => $amount] : []);
+                $amount = $result->data['bonus_amount'] ?? null;
 
                 $req->update([
-                    'status'         => 'approved_assigned',
-                    'status_reason'  => $result->reason,
-                    'client_message' => $clientMessage,
+                    'status'        => 'approved_assigned',
+                    'status_reason' => $result->reason,
+                    'message_id'    => $amount ? BonusStatusMessage::APPROVED_AMOUNT : BonusStatusMessage::APPROVED,
+                    'message_vars'  => $amount ? json_encode(['amount' => $amount]) : null,
                 ]);
             } else {
                 $req->update([
-                    'status'         => 'rejected',
-                    'status_reason'  => $result->reason ?? 'Rejected',
-                    'last_error'     => $result->lastError(),
-                    'client_message' => $messages->resolve('rejected'),
+                    'status'        => 'rejected',
+                    'status_reason' => $result->reason ?? 'Rejected',
+                    'last_error'    => $result->lastError(),
+                    'message_id'    => BonusStatusMessage::REJECTED,
                 ]);
             }
 
             $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
-                'status'         => 'rejected',
-                'last_error'     => $e->getMessage(),
-                'client_message' => $messages->resolve('error'),
+                'status'     => 'rejected',
+                'last_error' => $e->getMessage(),
+                'message_id' => BonusStatusMessage::ERROR,
             ]);
 
             $this->sendCallback($req->fresh());
@@ -101,12 +100,10 @@ class ProcessBonusRequest implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        $messages = app(ClientMessageService::class);
-
         BonusRequest::where('uuid', $this->bonusRequestUuid)->update([
-            'status'         => 'rejected',
-            'last_error'     => $e->getMessage(),
-            'client_message' => $messages->resolve('error'),
+            'status'     => 'rejected',
+            'last_error' => $e->getMessage(),
+            'message_id' => BonusStatusMessage::ERROR,
         ]);
     }
 }

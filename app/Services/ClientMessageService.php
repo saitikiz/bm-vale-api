@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Cache;
 
 class ClientMessageService
 {
+    private string $fallback = 'Bir hata oluştu, daha sonra tekrar deneyiniz.';
+
     private array $defaults = [
         'approved'          => 'Bonus talebiniz onaylandı. Bol şans!',
         'approved_amount'   => '{{amount}} TL bonus tanımlandı. Bol şans!',
@@ -16,29 +18,31 @@ class ClientMessageService
         'bonus_not_found'   => 'Bonus bulunamadı.',
     ];
 
-    public function resolve(string $key, array $variables = []): string
+    public function resolveById(int $id, array $vars = []): string
     {
-        $template = $this->getTemplate($key);
+        $message = Cache::remember("bsm:id:{$id}", 300, fn() => BonusStatusMessage::find($id));
 
-        return $this->interpolate($template, $variables);
+        if (!$message) {
+            return $this->fallback;
+        }
+
+        return $this->interpolate($message->template, $vars);
     }
 
-    private function getTemplate(string $key): string
+    public function resolve(string $key, array $vars = []): string
     {
-        $message = Cache::remember("bsm:{$key}", 300, function () use ($key) {
+        $message = Cache::remember("bsm:key:{$key}", 300, function () use ($key) {
             return BonusStatusMessage::where('key', $key)->where('active', true)->first();
         });
 
-        if ($message) {
-            return $message->template;
-        }
+        $template = $message ? $message->template : ($this->defaults[$key] ?? $this->fallback);
 
-        return $this->defaults[$key] ?? 'Bir hata oluştu, daha sonra tekrar deneyiniz.';
+        return $this->interpolate($template, $vars);
     }
 
-    private function interpolate(string $template, array $variables): string
+    public function interpolate(string $template, array $vars): string
     {
-        foreach ($variables as $var => $value) {
+        foreach ($vars as $var => $value) {
             $template = str_replace('{{' . $var . '}}', $value, $template);
         }
 
