@@ -9,6 +9,7 @@ use App\Services\PronetClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BonusController
 {
@@ -113,6 +114,66 @@ class BonusController
             'message'      => 'Bonus eklemede',
             'bonusRequest' => $bonusRequest,
         ]);
+    }
+
+    public function stream(string $uuid)
+    {
+        $pending     = ['new', 'checking'];
+        $maxSeconds  = 120;
+        $pollSeconds = 2;
+
+        $response = new StreamedResponse(function () use ($uuid, $pending, $maxSeconds, $pollSeconds) {
+            $start = time();
+
+            while (true) {
+                $req = BonusRequest::where('uuid', $uuid)->first();
+
+                if (!$req) {
+                    $this->sse(['error' => true, 'message' => 'Talep bulunamadi']);
+                    return;
+                }
+
+                if (!in_array($req->status, $pending, true)) {
+                    $this->sse([
+                        'status'        => $req->status,
+                        'status_reason' => $req->status_reason,
+                        'bonus_summary' => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
+                    ]);
+                    return;
+                }
+
+                // Henuz islemde: baglantiyi acik tutmak icin keep-alive yorumu
+                echo ": keep-alive\n\n";
+                $this->flushOutput();
+
+                if (connection_aborted() || (time() - $start) >= $maxSeconds) {
+                    return;
+                }
+
+                sleep($pollSeconds);
+            }
+        });
+
+        $response->headers->set('Content-Type', 'text/event-stream');
+        $response->headers->set('Cache-Control', 'no-cache');
+        $response->headers->set('Connection', 'keep-alive');
+        $response->headers->set('X-Accel-Buffering', 'no');
+
+        return $response;
+    }
+
+    private function sse(array $data): void
+    {
+        echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
+        $this->flushOutput();
+    }
+
+    private function flushOutput(): void
+    {
+        if (ob_get_level() > 0) {
+            ob_flush();
+        }
+        flush();
     }
 
     public function ping()
