@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\BonusRequest;
+use App\Models\BonusStatusMessage;
 use App\Services\BonusRequestProcessor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,8 +17,8 @@ class ProcessBonusRequest implements ShouldQueue
 
     public string $bonusRequestUuid;
 
-    public $tries = 3;          // kaç deneme
-    public $backoff = [10, 60]; // retry gecikmeleri
+    public $tries = 3;
+    public $backoff = [10, 60];
 
     public function __construct(string $bonusRequestUuid)
     {
@@ -33,22 +34,27 @@ class ProcessBonusRequest implements ShouldQueue
         if ($req->locked_at) return;
         $req->update([
             'locked_at' => now(),
-            'status' => 'checking',
+            'status'    => 'checking',
         ]);
 
         try {
             $result = $processor->process($req);
 
             if ($result->ok) {
+                $amount = $result->data['bonus_amount'] ?? null;
+
                 $req->update([
                     'status'        => 'approved_assigned',
                     'status_reason' => $result->reason,
+                    'message_id'    => $amount ? BonusStatusMessage::APPROVED_AMOUNT : BonusStatusMessage::APPROVED,
+                    'message_vars'  => $amount ? json_encode(['amount' => $amount]) : null,
                 ]);
             } else {
                 $req->update([
                     'status'        => 'rejected',
                     'status_reason' => $result->reason ?? 'Rejected',
                     'last_error'    => $result->lastError(),
+                    'message_id'    => BonusStatusMessage::REJECTED,
                 ]);
             }
 
@@ -57,14 +63,13 @@ class ProcessBonusRequest implements ShouldQueue
             $req->update([
                 'status'     => 'rejected',
                 'last_error' => $e->getMessage(),
+                'message_id' => BonusStatusMessage::ERROR,
             ]);
 
             $this->sendCallback($req->fresh());
 
-            throw $e; // tries/backoff çalışsın istiyorsan bunu bırak
+            throw $e;
         }
-
-
     }
 
     private function sendCallback(BonusRequest $req): void
@@ -76,7 +81,7 @@ class ProcessBonusRequest implements ShouldQueue
         $payload = json_encode([
             'uuid'            => $req->uuid,
             'status'          => $req->status,
-            'status_reason'   => $req->status_reason,
+            'client_message'  => $req->client_message,
             'bonus_summary'   => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
             'callback_secret' => $req->callback_secret,
         ]);
@@ -95,10 +100,10 @@ class ProcessBonusRequest implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        // Job tamamen başarısız olursa request kaydını güncelle
         BonusRequest::where('uuid', $this->bonusRequestUuid)->update([
-            'status' => 'rejected',
+            'status'     => 'rejected',
             'last_error' => $e->getMessage(),
+            'message_id' => BonusStatusMessage::ERROR,
         ]);
     }
 }
