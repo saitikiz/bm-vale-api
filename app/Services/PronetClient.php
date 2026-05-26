@@ -43,16 +43,6 @@ class PronetClient
         return base64_encode($hash);
     }
 
-    protected function get(string $uri, array $headers = [], array $body = []): array
-    {
-        // TODO: checksum hesapla, GET isteği gönder, array döndür
-    }
-
-    protected function post(string $uri, array $headers = [], array $body = []): array
-    {
-        // TODO: checksum hesapla, POST isteği gönder, array döndür
-    }
-
     /* =====================
     *  PRONET PUBLIC API METODLARI
     * ===================== */
@@ -65,7 +55,7 @@ class PronetClient
 
         try {
             $response = $this->http->request('GET', '/extapi/ping', [
-                'verify'  => $this->verifySsl, // testte false, prod’da true
+                'verify'  => $this->verifySsl, // testte false, prod"da true
                 'headers' => [
                     'content-type' => 'application/json',
                     'api_username' => $this->apiUser,
@@ -94,14 +84,14 @@ class PronetClient
 
     public function getBonusHistoryByName($username): array
     {
-        $jsonBody = json_encode([‘username’ => $username], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $jsonBody = json_encode(["username" => $username], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         try {
-            $response = $this->bonusHttp->request(‘POST’, ‘/bonuses’, [
-                ‘headers’ => [
-                    ‘content-type’ => ‘application/json’,
+            $response = $this->bonusHttp->request("POST", "/bonuses", [
+                "headers" => [
+                    "content-type" => "application/json",
                 ],
-                ‘body’ => $jsonBody,
+                "body" => $jsonBody,
             ]);
 
             $statusCode = $response->getStatusCode();
@@ -126,7 +116,7 @@ class PronetClient
     /** /extapi/customer/transactions/list */
     public function transactionsList(array $data = []): array
     {
-        // 1) Body’yi dışarıdan gelen $data üzerinden kuruyoruz
+        // 1) Body"yi dışarıdan gelen $data üzerinden kuruyoruz
         $body = [];       // ROOT payload
         $filterBody = []; // body içindeki filtreler
 
@@ -214,7 +204,7 @@ class PronetClient
     /** /extapi/customer/accounts/list */
     public function accountsList(array $data = []): array
     {
-        // 1) Body’yi dışarıdan gelen $data üzerinden kuruyoruz
+        // 1) Body"yi dışarıdan gelen $data üzerinden kuruyoruz
         $body = [];
 
         // Kimlik alanları: üçünden en az biri zorunlu
@@ -272,7 +262,7 @@ class PronetClient
     /** /extapi/customer/claimedbonuses/list */
     public function claimedbonusesList(array $data = []): array
     {
-        // 1) Body’yi dışarıdan gelen $data üzerinden kuruyoruz
+        // 1) Body"yi dışarıdan gelen $data üzerinden kuruyoruz
         $body = [];
 
         // Kimlik alanları: üçünden en az biri zorunlu
@@ -356,7 +346,7 @@ class PronetClient
      * */
     public function memberBalance(array $data = []): array
     {
-        // 1) Body’yi dışarıdan gelen $data üzerinden kuruyoruz
+        // 1) Body"yi dışarıdan gelen $data üzerinden kuruyoruz
         $body = [];
 
         // Kimlik alanları: üçünden en az biri zorunlu
@@ -428,7 +418,7 @@ class PronetClient
      */
     public function sportbetmastersList(array $data = []): array
     {
-        // 1) Body’yi kur
+        // 1) Body"yi kur
         $body = [];
 
         // Tarihler
@@ -505,7 +495,7 @@ class PronetClient
     /** : : /extapi/customer/member/summary */
     public function memberSummary(array $data = []): array
     {
-        // 1) Body’yi dışarıdan gelen $data üzerinden kuruyoruz
+        // 1) Body"yi dışarıdan gelen $data üzerinden kuruyoruz
         $body = [];
 
         // Kimlik alanları: üçünden en az biri zorunlu
@@ -572,7 +562,7 @@ class PronetClient
 
         try {
             $response = $this->http->request('GET', '/external-api/getBonusesAndFreeBets', [
-                'verify'  => $this->verifySsl, // testte false, prod’da true
+                'verify'  => $this->verifySsl, // testte false, prod"da true
                 'headers' => [
                     'content-type' => 'application/json',
                     'api_username' => $this->apiUser,
@@ -599,11 +589,6 @@ class PronetClient
     }
 
 
-    /** /external-api/customer/assignBonusesAndFreebets */
-    public function assignBonusesAndFreebets(array $data): array
-    {
-        // TODO: POST /external-api/customer/assignBonusesAndFreebets
-    }
 
 
 }
