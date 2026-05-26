@@ -42,6 +42,12 @@
             width: calc(100% - 30px);
         }
 
+        .page-blocker-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+            line-height: 1;
+        }
+
         .page-blocker-text {
             font-size: 18px;
             font-weight: 700;
@@ -52,6 +58,23 @@
             font-size: 14px;
             opacity: .8;
         }
+
+        .blocker-success .page-blocker-text { color: #7ddb7d; }
+        .blocker-error   .page-blocker-text { color: #e87070; }
+
+        .page-blocker-close {
+            margin-top: 18px;
+            background: #6542a4;
+            border: 0;
+            border-radius: 8px;
+            color: #fff;
+            padding: 8px 28px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .page-blocker-close:hover { background: #7650bb; }
         .main-wrapper{
             width:100%;
             max-width:440px;
@@ -148,12 +171,16 @@
 </div>
 <div id="pageBlocker" class="page-blocker">
     <div class="page-blocker-box">
+        <div id="pageBlockerIcon" class="page-blocker-icon"></div>
         <div id="pageBlockerText" class="page-blocker-text">
             Talebiniz iletiliyor
         </div>
         <div id="pageBlockerSub" class="page-blocker-sub">
             Lütfen bekleyiniz
         </div>
+        <button id="pageBlockerClose" class="page-blocker-close" onclick="closeBlocker()" style="display:none">
+            Tamam
+        </button>
     </div>
 </div>
 <script src="https://code.jquery.com/jquery-4.0.0.min.js" integrity="sha256-OaVG6prZf4v69dPg6PhVattBXkcOWQB62pdZ3ORyrao=" crossorigin="anonymous"></script>
@@ -164,34 +191,50 @@
     isFtn = /_\d+_FTN$/.test(username);
     user_id = urlParams.get('user_id');
     let isRequesting = false;
-    function claimBonus(bonus) {
-        if (isRequesting) {
-            return;
-        }
 
+    function showBlocker(title, sub, type) {
+        // type: 'loading' | 'success' | 'error'
+        const box = document.querySelector('.page-blocker-box');
+        box.className = 'page-blocker-box';
+        if (type) box.classList.add('blocker-' + type);
+
+        const icons = { loading: '⏳', success: '✅', error: '❌' };
+        $('#pageBlockerIcon').text(icons[type] || '');
+        $('#pageBlockerText').text(title);
+        $('#pageBlockerSub').text(sub);
+        $('#pageBlockerClose').toggle(type !== 'loading');
+        $('#pageBlocker').addClass('active');
+    }
+
+    function closeBlocker() {
+        $('#pageBlocker').removeClass('active');
+        isRequesting = false;
+    }
+
+    function claimBonus(bonus) {
+        if (isRequesting) return;
         isRequesting = true;
 
-        $('#pageBlockerText').text('Talebiniz iletiliyor');
-        $('#pageBlocker').addClass('active');
+        showBlocker('Talebiniz iletiliyor', 'Lütfen bekleyiniz', 'loading');
 
-        $.post("/api/bonus/request", {
-            bonus: bonus,
-            username: username,
-            user_id: user_id
-        }, function (data) {
-            if (data.success) {
-                $('#pageBlockerText').text('Talebiniz işlemde');
-                $('#pageBlockerSub').text('Sonuç bekleniyor, lütfen sayfayı kapatmayın');
-                listenResult(data.bonusRequest.uuid);
-            } else {
-                $('#pageBlocker').removeClass('active');
-                alert("Bonus talep edilirken bir hata oluştu: " + data.message);
-                isRequesting = false;
+        $.ajax({
+            url: '/api/bonus/request',
+            method: 'POST',
+            data: { bonus: bonus, username: username, user_id: user_id },
+            success: function (data) {
+                if (data.success) {
+                    showBlocker('Talebiniz işlemde', 'Sonuç bekleniyor, lütfen sayfayı kapatmayın', 'loading');
+                    listenResult(data.uuid);
+                } else {
+                    showBlocker('İşlem Başarısız', data.message || 'Bir hata oluştu, daha sonra tekrar deneyiniz.', 'error');
+                }
+            },
+            error: function (xhr) {
+                const msg = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Bir hata oluştu, daha sonra tekrar deneyiniz.';
+                showBlocker('İşlem Başarısız', msg, 'error');
             }
-        }).fail(function () {
-            $('#pageBlocker').removeClass('active');
-            alert("Sunucuya bağlanırken bir hata oluştu.");
-            isRequesting = false;
         });
     }
 
@@ -204,8 +247,8 @@
         };
 
         source.onerror = function () {
-            // Sonuç henüz gelmeden bağlantı koparsa: tarayıcı otomatik tekrar dener.
-            // Terminal sonuç geldiğinde onmessage içinde close() çağrıldığı için burası tetiklenmez.
+            // Bağlantı koparsa tarayıcı otomatik tekrar dener.
+            // Terminal sonuç gelince onmessage içinde close() çağrıldığı için burası tetiklenmez.
         };
     }
 
@@ -213,20 +256,16 @@
         isRequesting = false;
 
         if (res.error) {
-            $('#pageBlocker').removeClass('active');
-            alert(res.message || 'Bir hata oluştu.');
+            showBlocker('Bir Sorun Oluştu', res.message || 'Bir hata oluştu, daha sonra tekrar deneyiniz.', 'error');
             return;
         }
 
         if (res.status === 'approved' || res.status === 'approved_assigned') {
-            $('#pageBlockerText').text('Bonusunuz tanımlandı!');
-            $('#pageBlockerSub').text(res.status_reason || 'İşlem başarıyla tamamlandı.');
+            showBlocker('Tebrikler!', res.client_message || 'Bonus talebiniz onaylandı. Bol şans!', 'success');
         } else {
-            $('#pageBlockerText').text('Talebiniz onaylanmadı');
-            $('#pageBlockerSub').text(res.status_reason || 'Bonus talebiniz reddedildi.');
+            showBlocker('Talebiniz Onaylanmadı', res.client_message || 'Üzgünüz, bonus uygunluğunuz bulunamadı.', 'error');
         }
     }
-
 </script>
 </body>
 </html>
