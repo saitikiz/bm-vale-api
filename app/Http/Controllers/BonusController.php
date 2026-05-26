@@ -98,7 +98,7 @@ class BonusController
             return response()->json([
                 'success' => false,
                 'message' => $this->messages->resolveById(BonusStatusMessage::DUPLICATE),
-            ], 429);
+            ], 200);
         }
 
         $bonusRequest = BonusRequest::create([
