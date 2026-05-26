@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Bonus;
 use App\Models\BonusRequest;
+use App\Support\Result;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -14,12 +15,12 @@ class BonusRequestProcessor
         protected BonusCalculationService $calculation,
     ) {}
 
-    public function process(BonusRequest $req): array
+    public function process(BonusRequest $req): Result
     {
         $bonus = Bonus::find($req->bonus_id);
 
         if (!$bonus || !$bonus->active) {
-            return ['ok' => false, 'reason' => 'Bonus inactive or not found'];
+            return Result::fail('Bonus inactive or not found');
         }
 
         $function_name = $bonus->function_name ?? 'default';
@@ -27,7 +28,7 @@ class BonusRequestProcessor
         if (!method_exists($this, $function_name)) {
             $reason = "Tanımsız bonus fonksiyonu: {$function_name}";
             Log::warning("BonusRequestProcessor: {$reason}", ['uuid' => $req->uuid]);
-            return ['ok' => false, 'reason' => $reason];
+            return Result::fail($reason);
         }
 
         Log::info("BonusRequestProcessor: dispatching [{$function_name}]", ['uuid' => $req->uuid]);
@@ -39,11 +40,11 @@ class BonusRequestProcessor
     // Yardımcı
     // -------------------------------------------------------------------------
 
-    private function apiError(BonusRequest $req, string $reason, array $apiResponse): array
+    private function apiError(BonusRequest $req, string $reason, array $apiResponse): Result
     {
         $detail = [
             'status' => $apiResponse['status'] ?? null,
-            'body'   => $apiResponse['response']['body'] ?? $apiResponse['response'] ?? null,
+            'body'   => $apiResponse['response']['body'] ?? $apiResponse['response'] ?? $apiResponse['error'] ?? null,
         ];
 
         Log::error("BonusRequestProcessor: {$reason}", [
@@ -51,14 +52,14 @@ class BonusRequestProcessor
             'detail' => $detail,
         ]);
 
-        return ['ok' => false, 'reason' => $reason, 'detail' => $detail];
+        return Result::fail($reason, $detail);
     }
 
     // -------------------------------------------------------------------------
     // Bonus fonksiyonları
     // -------------------------------------------------------------------------
 
-    private function f3336(BonusRequest $req, Bonus $bonus): array
+    private function f3336(BonusRequest $req, Bonus $bonus): Result
     {
         $endDate      = Carbon::now('Europe/Istanbul');
         $startDate    = $endDate->copy()->subHours(24);
@@ -110,15 +111,15 @@ class BonusRequestProcessor
             $siteSummary['transactionsList']
         );
 
-        if (!$summary['success']) {
-            return ['ok' => false, 'reason' => $summary['message'] ?? 'Net durum hesaplanamadı'];
+        if (!$summary->ok) {
+            return Result::fail($summary->reason ?? 'Net durum hesaplanamadı');
         }
 
-        $req->update(['bonus_summary' => json_encode($summary)]);
+        $req->update(['bonus_summary' => json_encode($summary->data)]);
 
         // TODO: $summary verisine göre bonus assign et
-        Log::info('f3336 summary', $summary);
+        Log::info('f3336 summary', $summary->data);
 
-        return ['ok' => true, 'reason' => 'f3336 işlendi', 'summary' => $summary];
+        return Result::ok('f3336 işlendi', $summary->data);
     }
 }

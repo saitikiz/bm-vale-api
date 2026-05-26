@@ -39,30 +39,27 @@ class ProcessBonusRequest implements ShouldQueue
         try {
             $result = $processor->process($req);
 
-            if ($result['ok']) {
+            if ($result->ok) {
                 $req->update([
                     'status'        => 'approved_assigned',
-                    'status_reason' => $result['reason'] ?? null,
+                    'status_reason' => $result->reason,
                 ]);
             } else {
-                $lastError = $result['reason'] ?? 'Rejected';
-                if (!empty($result['detail'])) {
-                    $lastError .= ' | ' . (is_string($result['detail']) ? $result['detail'] : json_encode($result['detail']));
-                }
-
                 $req->update([
                     'status'        => 'rejected',
-                    'status_reason' => $result['reason'] ?? 'Rejected',
-                    'last_error'    => $lastError,
+                    'status_reason' => $result->reason ?? 'Rejected',
+                    'last_error'    => $result->lastError(),
                 ]);
             }
 
             $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
-                'status' => 'rejected',
+                'status'     => 'rejected',
                 'last_error' => $e->getMessage(),
             ]);
+
+            $this->sendCallback($req->fresh());
 
             throw $e; // tries/backoff çalışsın istiyorsan bunu bırak
         }
