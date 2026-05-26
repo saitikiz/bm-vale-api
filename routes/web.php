@@ -1,28 +1,7 @@
 <?php
 
-Route::redirect('/', '/login');
-Route::get('/home', function () {
-    if (session('status')) {
-        return redirect()->route('admin.home')->with('status', session('status'));
-    }
 
-    return redirect()->route('admin.home');
-});
-
-Auth::routes(['register' => false]);
-
-//Route::get('/admin/pgbo/login', [\App\Http\Controllers\Admin\PgboLoginController::class, 'showLogin']);
-Route::get('/admin/pgbo/login', [\App\Http\Controllers\Admin\PgboLoginController::class, 'login']);
-
-Route::get('/admin/pgbo/otp', [\App\Http\Controllers\Admin\PgboLoginController::class, 'showOtp']);
-Route::post('/admin/pgbo/otp', [\App\Http\Controllers\Admin\PgboLoginController::class, 'postOtp']);
-
-Route::get('/admin/pgbo/customers', [\App\Http\Controllers\Admin\PgboLoginController::class, 'customers']); // test
-
-Route::get('/admin/pgbo/customer-select/{id}', [\App\Http\Controllers\Admin\PgboLoginController::class, 'customerSelect']);
-Route::get('/admin/pgbo/customer-select2', [\App\Http\Controllers\Admin\PgboLoginController::class, 'customerSelect2']);
-
-Route::get('/admin/pgbo/customers/chain/{id}', [\App\Http\Controllers\Admin\PgboLoginController::class, 'customersChain']);
+Route::get('/', 'HomeController@index')->name('home');
 
 
 Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Admin', 'middleware' => ['auth']], function () {
