@@ -76,8 +76,8 @@ class BonusController
             ], 404);
         }
 
-        // TODO: günde 1 olan bonus var ise aynı bonustan tekrar gelirse otomatik reddetme
-        $exists = BonusRequest::where(function ($query) use ($data) {
+        $cooldown = config('bonus.cooldown_seconds', 120);
+        $recent = BonusRequest::where(function ($query) use ($data) {
             if (!empty($data['user_id'])) {
                 $query->orWhere('customerid', $data['user_id']);
             }
@@ -85,8 +85,16 @@ class BonusController
                 $query->orWhere('customer_username', $data['username']);
             }
         })
-            ->whereIn('status', ['new', 'checking'])
+            ->where('bonus_id', $bonus->id)
+            ->where('created_at', '>=', now()->subSeconds($cooldown))
             ->exists();
+
+        if ($recent) {
+            return response()->json([
+                'success' => false,
+                'message' => config('bonus.default_messages.cooldown'),
+            ], 429);
+        }
 
         $bonusRequest = BonusRequest::create([
             'uuid'              => Str::uuid(),
@@ -134,10 +142,11 @@ class BonusController
                 }
 
                 if (!in_array($req->status, $pending, true)) {
+                    $approved = ['approved', 'approved_assigned'];
                     $this->sse([
-                        'status'        => $req->status,
-                        'status_reason' => $req->status_reason,
-                        'bonus_summary' => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
+                        'success'        => in_array($req->status, $approved),
+                        'status'         => $req->status,
+                        'client_message' => $req->client_message,
                     ]);
                     return;
                 }

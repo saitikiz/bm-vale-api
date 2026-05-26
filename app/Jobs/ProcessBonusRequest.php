@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Bonus;
 use App\Models\BonusRequest;
 use App\Services\BonusRequestProcessor;
 use Illuminate\Bus\Queueable;
@@ -36,32 +37,43 @@ class ProcessBonusRequest implements ShouldQueue
             'status' => 'checking',
         ]);
 
+        $bonus = Bonus::find($req->bonus_id);
+
         try {
             $result = $processor->process($req);
 
             if ($result->ok) {
                 $req->update([
-                    'status'        => 'approved_assigned',
-                    'status_reason' => $result->reason,
+                    'status'         => 'approved_assigned',
+                    'status_reason'  => $result->reason,
+                    'client_message' => $this->renderMessage(
+                        $bonus?->success_message ?? config('bonus.default_messages.success'),
+                        $result->data
+                    ),
                 ]);
             } else {
                 $req->update([
-                    'status'        => 'rejected',
-                    'status_reason' => $result->reason ?? 'Rejected',
-                    'last_error'    => $result->lastError(),
+                    'status'         => 'rejected',
+                    'status_reason'  => $result->reason ?? 'Rejected',
+                    'last_error'     => $result->lastError(),
+                    'client_message' => $this->renderMessage(
+                        $bonus?->rejection_message ?? config('bonus.default_messages.rejection'),
+                        $result->data
+                    ),
                 ]);
             }
 
             $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
-                'status'     => 'rejected',
-                'last_error' => $e->getMessage(),
+                'status'         => 'rejected',
+                'last_error'     => $e->getMessage(),
+                'client_message' => $bonus?->error_message ?? config('bonus.default_messages.error'),
             ]);
 
             $this->sendCallback($req->fresh());
 
-            throw $e; // tries/backoff çalışsın istiyorsan bunu bırak
+            throw $e;
         }
 
 
@@ -93,12 +105,22 @@ class ProcessBonusRequest implements ShouldQueue
         curl_close($ch);
     }
 
+    private function renderMessage(string $template, array $vars): string
+    {
+        foreach ($vars as $key => $value) {
+            if (is_scalar($value)) {
+                $template = str_replace('{{' . $key . '}}', (string) $value, $template);
+            }
+        }
+        return $template;
+    }
+
     public function failed(\Throwable $e): void
     {
-        // Job tamamen başarısız olursa request kaydını güncelle
         BonusRequest::where('uuid', $this->bonusRequestUuid)->update([
-            'status' => 'rejected',
-            'last_error' => $e->getMessage(),
+            'status'         => 'rejected',
+            'last_error'     => $e->getMessage(),
+            'client_message' => config('bonus.default_messages.error'),
         ]);
     }
 }

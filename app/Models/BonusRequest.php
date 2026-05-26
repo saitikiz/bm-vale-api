@@ -51,6 +51,7 @@ class BonusRequest extends Model
         'locked_at',
         'retry_count',
         'last_error',
+        'client_message',
         'site_summary',
         'bonus_history',
         'bonus_summary',

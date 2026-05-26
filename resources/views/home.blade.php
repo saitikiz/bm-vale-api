@@ -188,9 +188,14 @@
                 alert("Bonus talep edilirken bir hata oluştu: " + data.message);
                 isRequesting = false;
             }
-        }).fail(function () {
+        }).fail(function (xhr) {
             $('#pageBlocker').removeClass('active');
-            alert("Sunucuya bağlanırken bir hata oluştu.");
+            let msg = "Sunucuya bağlanırken bir hata oluştu.";
+            try {
+                const resp = JSON.parse(xhr.responseText);
+                if (resp.message) msg = resp.message;
+            } catch (e) {}
+            alert(msg);
             isRequesting = false;
         });
     }
@@ -218,13 +223,9 @@
             return;
         }
 
-        if (res.status === 'approved' || res.status === 'approved_assigned') {
-            $('#pageBlockerText').text('Bonusunuz tanımlandı!');
-            $('#pageBlockerSub').text(res.status_reason || 'İşlem başarıyla tamamlandı.');
-        } else {
-            $('#pageBlockerText').text('Talebiniz onaylanmadı');
-            $('#pageBlockerSub').text(res.status_reason || 'Bonus talebiniz reddedildi.');
-        }
+        const msg = res.client_message || (res.success ? 'Bonusunuz tanımlandı.' : 'Bonus talebiniz reddedildi.');
+        $('#pageBlockerText').text(msg);
+        $('#pageBlockerSub').text('');
     }
 
 </script>
