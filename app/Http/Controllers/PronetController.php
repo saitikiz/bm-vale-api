@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Services\PronetServices\PronetClient;
+use App\Services\PronetServices2\PronetClient;
 use Illuminate\Http\Request;
 
 class PronetController
