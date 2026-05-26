@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Support\Result;
+
 class BonusCalculationService
 {
     /**
@@ -95,31 +97,18 @@ class BonusCalculationService
      *
      * @param array $bonusHistory Bonus geçmişi response'u (içinde 'data' anahtarı beklenir)
      * @param array $transactions Transaction listesi
-     * @return array{success: bool, message: string|null, last_bonus_date: string|null, total_deposit: float, total_withdrawal: float, net: float, deposit_count: int, withdrawal_count: int, skipped_count: int}
      */
-    public function getNetStatusSinceLastBonus(array $bonusHistory, array $transactions): array
+    public function getNetStatusSinceLastBonus(array $bonusHistory, array $transactions): Result
     {
         $lastBonusDate = $this->getLastBonusDate($bonusHistory['data'] ?? []);
 
         if ($lastBonusDate === null) {
-            return [
-                'success'          => false,
-                'message'          => 'Bonus kaydı bulunamadı.',
-                'last_bonus_date'  => null,
-                'total_deposit'    => 0.0,
-                'total_withdrawal' => 0.0,
-                'net'              => 0.0,
-                'deposit_count'    => 0,
-                'withdrawal_count' => 0,
-                'skipped_count'    => 0,
-            ];
+            return Result::fail('Bonus kaydı bulunamadı.');
         }
 
         $result = $this->calculateNetSinceDate($transactions, $lastBonusDate);
 
-        return [
-            'success'          => true,
-            'message'          => null,
+        return Result::ok(null, [
             'last_bonus_date'  => $lastBonusDate->format('d.m.Y H:i'),
             'total_deposit'    => $result['total_deposit'],
             'total_withdrawal' => $result['total_withdrawal'],
@@ -127,6 +116,6 @@ class BonusCalculationService
             'deposit_count'    => $result['deposit_count'],
             'withdrawal_count' => $result['withdrawal_count'],
             'skipped_count'    => $result['skipped_count'],
-        ];
+        ]);
     }
 }
