@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\BonusRequest;
 use App\Services\BonusRequestProcessor;
+use App\Services\ClientMessageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,15 +17,15 @@ class ProcessBonusRequest implements ShouldQueue
 
     public string $bonusRequestUuid;
 
-    public $tries = 3;          // kaç deneme
-    public $backoff = [10, 60]; // retry gecikmeleri
+    public $tries = 3;
+    public $backoff = [10, 60];
 
     public function __construct(string $bonusRequestUuid)
     {
         $this->bonusRequestUuid = $bonusRequestUuid;
     }
 
-    public function handle(BonusRequestProcessor $processor): void
+    public function handle(BonusRequestProcessor $processor, ClientMessageService $messages): void
     {
         $req = BonusRequest::where('uuid', $this->bonusRequestUuid)->first();
 
@@ -33,38 +34,43 @@ class ProcessBonusRequest implements ShouldQueue
         if ($req->locked_at) return;
         $req->update([
             'locked_at' => now(),
-            'status' => 'checking',
+            'status'    => 'checking',
         ]);
 
         try {
             $result = $processor->process($req);
 
             if ($result->ok) {
+                $amount         = $result->data['bonus_amount'] ?? null;
+                $messageKey     = $amount ? 'approved_amount' : 'approved';
+                $clientMessage  = $messages->resolve($messageKey, $amount ? ['amount' => $amount] : []);
+
                 $req->update([
-                    'status'        => 'approved_assigned',
-                    'status_reason' => $result->reason,
+                    'status'         => 'approved_assigned',
+                    'status_reason'  => $result->reason,
+                    'client_message' => $clientMessage,
                 ]);
             } else {
                 $req->update([
-                    'status'        => 'rejected',
-                    'status_reason' => $result->reason ?? 'Rejected',
-                    'last_error'    => $result->lastError(),
+                    'status'         => 'rejected',
+                    'status_reason'  => $result->reason ?? 'Rejected',
+                    'last_error'     => $result->lastError(),
+                    'client_message' => $messages->resolve('rejected'),
                 ]);
             }
 
             $this->sendCallback($req->fresh());
         } catch (\Throwable $e) {
             $req->update([
-                'status'     => 'rejected',
-                'last_error' => $e->getMessage(),
+                'status'         => 'rejected',
+                'last_error'     => $e->getMessage(),
+                'client_message' => $messages->resolve('error'),
             ]);
 
             $this->sendCallback($req->fresh());
 
-            throw $e; // tries/backoff çalışsın istiyorsan bunu bırak
+            throw $e;
         }
-
-
     }
 
     private function sendCallback(BonusRequest $req): void
@@ -76,7 +82,7 @@ class ProcessBonusRequest implements ShouldQueue
         $payload = json_encode([
             'uuid'            => $req->uuid,
             'status'          => $req->status,
-            'status_reason'   => $req->status_reason,
+            'client_message'  => $req->client_message,
             'bonus_summary'   => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
             'callback_secret' => $req->callback_secret,
         ]);
@@ -95,10 +101,12 @@ class ProcessBonusRequest implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        // Job tamamen başarısız olursa request kaydını güncelle
+        $messages = app(ClientMessageService::class);
+
         BonusRequest::where('uuid', $this->bonusRequestUuid)->update([
-            'status' => 'rejected',
-            'last_error' => $e->getMessage(),
+            'status'         => 'rejected',
+            'last_error'     => $e->getMessage(),
+            'client_message' => $messages->resolve('error'),
         ]);
     }
 }

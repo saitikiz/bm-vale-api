@@ -47,6 +47,7 @@ class BonusRequest extends Model
         'ip',
         'status',
         'status_reason',
+        'client_message',
         'note',
         'locked_at',
         'retry_count',

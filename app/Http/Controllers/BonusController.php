@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ProcessBonusRequest;
 use App\Models\Bonus;
 use App\Models\BonusRequest;
+use App\Services\ClientMessageService;
 use App\Services\PronetClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -14,10 +15,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class BonusController
 {
     protected PronetClient $pronet;
+    protected ClientMessageService $messages;
 
-    public function __construct(PronetClient $pronet)
+    public function __construct(PronetClient $pronet, ClientMessageService $messages)
     {
-        $this->pronet = $pronet;
+        $this->pronet   = $pronet;
+        $this->messages = $messages;
     }
 
     public function index(Request $request)
@@ -72,21 +75,30 @@ class BonusController
         if (!$bonus) {
             return response()->json([
                 'success' => false,
-                'message' => 'Bonus bulunamadı',
+                'message' => $this->messages->resolve('bonus_not_found'),
             ], 404);
         }
 
-        // TODO: günde 1 olan bonus var ise aynı bonustan tekrar gelirse otomatik reddetme
-        $exists = BonusRequest::where(function ($query) use ($data) {
-            if (!empty($data['user_id'])) {
-                $query->orWhere('customerid', $data['user_id']);
-            }
-            if (!empty($data['username'])) {
-                $query->orWhere('customer_username', $data['username']);
-            }
-        })
-            ->whereIn('status', ['new', 'checking'])
+        $cooldown = (int) env('BONUS_COOLDOWN_SECONDS', 120);
+
+        $recentRequest = BonusRequest::where('bonus_id', $bonus->id)
+            ->where(function ($query) use ($data) {
+                if (!empty($data['user_id'])) {
+                    $query->orWhere('customerid', $data['user_id']);
+                }
+                if (!empty($data['username'])) {
+                    $query->orWhere('customer_username', $data['username']);
+                }
+            })
+            ->where('created_at', '>=', now()->subSeconds($cooldown))
             ->exists();
+
+        if ($recentRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => $this->messages->resolve('duplicate_request'),
+            ], 429);
+        }
 
         $bonusRequest = BonusRequest::create([
             'uuid'              => Str::uuid(),
@@ -98,21 +110,22 @@ class BonusController
             'ip'                => $request->ip(),
             'status'            => 'new',
             'status_reason'     => null,
+            'client_message'    => null,
             'note'              => null,
-            'locked_at'       => null,
-            'retry_count'     => 0,
-            'last_error'      => null,
-            'site_id'         => null,
-            'callback_url'    => $data['callback_url'] ?? null,
-            'callback_secret' => $data['callback_secret'] ?? null,
+            'locked_at'         => null,
+            'retry_count'       => 0,
+            'last_error'        => null,
+            'site_id'           => null,
+            'callback_url'      => $data['callback_url'] ?? null,
+            'callback_secret'   => $data['callback_secret'] ?? null,
         ]);
 
         ProcessBonusRequest::dispatch($bonusRequest->uuid)->onQueue('bonusRequest');
 
         return response()->json([
-            'success'      => true,
-            'message'      => 'Bonus eklemede',
-            'bonusRequest' => $bonusRequest,
+            'success' => true,
+            'message' => 'Bonus talebiniz alındı, işleme alınıyor.',
+            'uuid'    => $bonusRequest->uuid,
         ]);
     }
 
@@ -129,20 +142,19 @@ class BonusController
                 $req = BonusRequest::where('uuid', $uuid)->first();
 
                 if (!$req) {
-                    $this->sse(['error' => true, 'message' => 'Talep bulunamadi']);
+                    $this->sse(['error' => true, 'message' => 'Talep bulunamadı.']);
                     return;
                 }
 
                 if (!in_array($req->status, $pending, true)) {
                     $this->sse([
-                        'status'        => $req->status,
-                        'status_reason' => $req->status_reason,
-                        'bonus_summary' => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
+                        'status'         => $req->status,
+                        'client_message' => $req->client_message,
+                        'bonus_summary'  => $req->bonus_summary ? json_decode($req->bonus_summary, true) : null,
                     ]);
                     return;
                 }
 
-                // Henuz islemde: baglantiyi acik tutmak icin keep-alive yorumu
                 echo ": keep-alive\n\n";
                 $this->flushOutput();
 
