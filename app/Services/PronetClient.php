@@ -11,18 +11,24 @@ class PronetClient
     protected string $secret;
     protected bool $verifySsl;
     protected Client $http;
+    protected Client $bonusHttp;
 
     public function __construct()
     {
-        $this->baseUrl  = config('pronet.base_url');
-        $this->apiUser  = config('pronet.api_user');
-        $this->secret   = config('pronet.secret');
+        $this->baseUrl   = config('pronet.base_url');
+        $this->apiUser   = config('pronet.api_user');
+        $this->secret    = config('pronet.secret');
         $this->verifySsl = (bool) config('pronet.verify_ssl', false);
 
-        // burada Guzzle client ayarlanacak (body boş bırakıyoruz)
         $this->http = new Client([
             'base_uri' => $this->baseUrl,
             'timeout'  => 10,
+        ]);
+
+        $this->bonusHttp = new Client([
+            'base_uri'        => config('pronet.bonus_history_url'),
+            'timeout'         => config('pronet.bonus_history_timeout'),
+            'connect_timeout' => 5,
         ]);
     }
 
@@ -88,19 +94,14 @@ class PronetClient
 
     public function getBonusHistoryByName($username): array
     {
-        $body = []; // ping için gövde boş
-        $body = [
-            'username' => $username,
-        ];
-        $jsonBody = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $jsonBody = json_encode([‘username’ => $username], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         try {
-            $response = $this->http->request('POST', 'http://127.0.0.1:5000/bonuses', [
-                'verify'  => $this->verifySsl, // testte false, prod’da true
-                'headers' => [
-                    'content-type' => 'application/json',
+            $response = $this->bonusHttp->request(‘POST’, ‘/bonuses’, [
+                ‘headers’ => [
+                    ‘content-type’ => ‘application/json’,
                 ],
-                'body' => $jsonBody,
+                ‘body’ => $jsonBody,
             ]);
 
             $statusCode = $response->getStatusCode();
