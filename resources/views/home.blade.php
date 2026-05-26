@@ -151,7 +151,7 @@
         <div id="pageBlockerText" class="page-blocker-text">
             Talebiniz iletiliyor
         </div>
-        <div class="page-blocker-sub">
+        <div id="pageBlockerSub" class="page-blocker-sub">
             Lütfen bekleyiniz
         </div>
     </div>
@@ -181,6 +181,8 @@
         }, function (data) {
             if (data.success) {
                 $('#pageBlockerText').text('Talebiniz işlemde');
+                $('#pageBlockerSub').text('Sonuç bekleniyor, lütfen sayfayı kapatmayın');
+                listenResult(data.bonusRequest.uuid);
             } else {
                 $('#pageBlocker').removeClass('active');
                 alert("Bonus talep edilirken bir hata oluştu: " + data.message);
@@ -191,6 +193,38 @@
             alert("Sunucuya bağlanırken bir hata oluştu.");
             isRequesting = false;
         });
+    }
+
+    function listenResult(uuid) {
+        const source = new EventSource('/api/bonus/stream/' + encodeURIComponent(uuid));
+
+        source.onmessage = function (event) {
+            source.close();
+            handleResult(JSON.parse(event.data));
+        };
+
+        source.onerror = function () {
+            // Sonuç henüz gelmeden bağlantı koparsa: tarayıcı otomatik tekrar dener.
+            // Terminal sonuç geldiğinde onmessage içinde close() çağrıldığı için burası tetiklenmez.
+        };
+    }
+
+    function handleResult(res) {
+        isRequesting = false;
+
+        if (res.error) {
+            $('#pageBlocker').removeClass('active');
+            alert(res.message || 'Bir hata oluştu.');
+            return;
+        }
+
+        if (res.status === 'approved' || res.status === 'approved_assigned') {
+            $('#pageBlockerText').text('Bonusunuz tanımlandı!');
+            $('#pageBlockerSub').text(res.status_reason || 'İşlem başarıyla tamamlandı.');
+        } else {
+            $('#pageBlockerText').text('Talebiniz onaylanmadı');
+            $('#pageBlockerSub').text(res.status_reason || 'Bonus talebiniz reddedildi.');
+        }
     }
 
 </script>

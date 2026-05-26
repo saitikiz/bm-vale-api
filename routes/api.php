@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::post('bonus/request', [BonusController::class, 'bonusRequest']);
+Route::get('bonus/stream/{uuid}', [BonusController::class, 'stream'])
+    ->where('uuid', '[0-9a-fA-F-]+');
 
 
 Route::group(['prefix' => 'v1', 'as' => 'api.', 'namespace' => 'Api\V1\Admin', 'middleware' => ['auth:sanctum']], function () {
